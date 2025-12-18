@@ -16,11 +16,11 @@
 3.  **데이터 흐름 (주문에서 배달까지)**
 4.  **소스 코드 전체 보기 및 해설**
     *   [1. 공용 도구 (JDBCTemplate)](#1-공용-도구-jdbctemplatejava)
-    *   [2. 데이터 모델 (DTO)](#2-데이터-모델-dto---배달-가방)
-    *   [3. 쿼리 저장소 (XML)](#3-쿼리-저장소-xml---레시피북)
-    *   [4. 데이터 접근 (DAO)](#4-데이터-접근-dao---창고-관리자)
-    *   [5. 비즈니스 로직 (Service)](#5-비즈니스-로직-service---지배인)
-    *   [6. 컨트롤러 (Controller)](#6-컨트롤러-controller---카운터)
+    *   [2. 데이터 모델 (DTO)](#2-데이터-모델-dto)
+    *   [3. 쿼리 저장소 (XML)](#3-쿼리-저장소-xml-mapper)
+    *   [4. 데이터 접근 (DAO)](#4-데이터-접근-dao)
+    *   [5. 비즈니스 로직 (Service)](#5-비즈니스-로직-service)
+    *   [6. 컨트롤러 (Controller)](#6-컨트롤러-controller)
     *   [7. 화면 (View - JSP)](#7-화면-view---jsp)
     *   [8. 메인 화면 (index.jsp)](#8-메인-화면-indexjsp)
 
@@ -78,12 +78,12 @@ src/main
 │       ├── controller/
 │       │   └── MenuController.java (🚥 요청 처리반)
 │       ├── model/
-│       │   ├── dto/                (🍱 데이터 가방)
+│       │   ├── dto/                (🍱 데이터 객체)
 │       │   │   ├── MenuDTO.java
 │       │   │   └── CategoryDTO.java
-│       │   ├── dao/                (🛠️ 창고 관리자)
+│       │   ├── dao/                (🛠️ DB 접근 객체)
 │       │   │   └── MenuDAO.java
-│       │   └── service/            (👔 지배인)
+│       │   └── service/            (👔 비즈니스 로직)
 │       │       └── MenuService.java
 ├── resources/                     
 │   └── mapper/
@@ -139,28 +139,27 @@ public class JDBCTemplate {
     // 1. DB 연결을 가져오는 메서드
     // static이라서 'new JDBCTemplate()' 없이 바로 쓸 수 있습니다.
     public static Connection getConnection() {
-        Properties prop = new Properties(); // 설정값을 읽기 위한 도구
-        Connection con = null; // 연결 객체 (처음엔 비어있음)
+        Properties prop = new Properties(); // 설정값을 읽기 위한 객체
+        Connection con = null; // 연결 객체
         
         try {
-            // (1) 설정 파일 읽기: resources 폴더에 있는 파일을 찾아서 읽습니다.
-            // 여기에 DB 주소, 아이디, 비번이 적혀있습니다.
+            // (1) 설정 파일 로드: resources 폴더의 jdbc-config.properties 파일을 읽습니다.
+            // DB 연결 관련 속성(URL, User, Password)을 로드합니다.
             prop.load(JDBCTemplate.class.getClassLoader().getResourceAsStream("jdbc-config.properties"));
             
             String url = prop.getProperty("url");
             String user = prop.getProperty("user");
             String password = prop.getProperty("password");
 
-            // (2) 드라이버 등록: "나 MySQL 쓸 거야"라고 자바에 알립니다.
-            // 이게 없으면 연결을 못 합니다.
+            // (2) 드라이버 로드: MySQL JDBC 드라이버 클래스를 메모리에 로드합니다.
+            // JDBC 4.0 이상에서는 자동 로딩되지만, 명시적으로 로드하는 것이 좋습니다.
             Class.forName("com.mysql.cj.jdbc.Driver");
             
-            // (3) 연결 시도: DriverManager라는 애가 드라이버를 이용해서 실제 연결을 만듭니다.
+            // (3) 연결 수립: DriverManager를 통해 데이터베이스와 연결된 Connection 객체를 생성합니다.
             con = DriverManager.getConnection(url, user, password);
 
-            // (4) 자동 커밋 끄기: *매우 중요*
-            // 기본적으로는 SQL 한 줄 실행할 때마다 자동 저장(Commit)되는데,
-            // 우리는 여러 작업을 묶어서(트랜잭션) 처리해야 하므로 수동으로 하겠다고 끕니다.
+            // (4) AutoCommit 비활성화: 트랜잭션을 수동으로 관리하기 위해 자동 커밋을 끕니다.
+            // 여러 DML 작업을 하나의 트랜잭션으로 묶기 위함입니다.
             con.setAutoCommit(false);
 
         } catch (SQLException e) { 
@@ -170,23 +169,23 @@ public class JDBCTemplate {
         } catch (ClassNotFoundException e) { 
             e.printStackTrace(); // 드라이버 없으면 로그 찍어라
         }
-        return con; // 만든 연결(전화기)을 반환
+        return con; // 생성된 Connection 객체 반환
     }
 
-    // 2. 연결 닫기 (close)
-    // 다 쓴 연결을 안 끊으면 계속 쌓여서 서버가 터집니다. (메모리 누수)
+    // 2. 연결 종료 (close)
+    // 사용한 Connection 객체를 반환하여 리소스 누수(Memory Leak)를 방지합니다.
     public static void close(Connection con) {
         try {
-            // null이 아니고(연결 자체가 없던게 아니고), !isClosed(아직 안 닫혔으면)
+            // Connection이 null이 아니고 닫혀있지 않은 경우에만 close 호출
             if (con != null && !con.isClosed()) {
-                con.close(); // 닫아라
+                con.close();
             }
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
     }
 
-    // Statement는 쿼리를 실어나르는 트럭입니다. 얘도 닫아야 합니다.
+    // Statement 객체 종료: SQL 실행을 담당한 객체를 닫습니다.
     public static void close(Statement stmt) {
         try {
             if (stmt != null && !stmt.isClosed()) {
@@ -197,7 +196,7 @@ public class JDBCTemplate {
         }
     }
 
-    // ResultSet은 쿼리 결과를 담은 상자입니다. 얘도 닫아야 합니다.
+    // ResultSet 객체 종료: 쿼리 실행 결과를 담은 객체를 닫습니다.
     public static void close(ResultSet rset) {
         try {
             if (rset != null && !rset.isClosed()) {
@@ -208,8 +207,8 @@ public class JDBCTemplate {
         }
     }
 
-    // 3. 확정 (commit)
-    // 트랜잭션이 성공적으로 끝났을 때 "저장해!"라고 하는 것
+    // 3. 트랜잭션 확정 (commit)
+    // 모든 작업이 성공적으로 수행되었을 때 변경 사항을 영구 저장합니다.
     public static void commit(Connection con) {
         try {
             if (con != null && !con.isClosed()) {
@@ -220,8 +219,8 @@ public class JDBCTemplate {
         }
     }
 
-    // 4. 취소 (rollback)
-    // 중간에 에러나서 "없던 일로 해!"라고 하는 것
+    // 4. 트랜잭션 취소 (rollback)
+    // 작업 중 오류가 발생했을 때 변경 사항을 취소하고 이전 상태로 되돌립니다.
     public static void rollback(Connection con) {
         try {
             if (con != null && !con.isClosed()) {
@@ -236,18 +235,18 @@ public class JDBCTemplate {
 
 ---
 
-### 2. 데이터 모델 (DTO - 배달 가방)
+### 2. 데이터 모델 (DTO - Data Transfer Object)
 ![Java](https://img.shields.io/badge/Java-MenuDTO.java-EA5442?style=flat&logo=java&logoColor=white)
 
-데이터를 이쪽 파일에서 저쪽 파일로 옮길 때 쓰는 **가방**입니다. 기능은 없고 변수만 있습니다.
+데이터를 계층(Layer) 간에 전달할 때 사용하는 **객체**입니다. 로직 없이 순수하게 데이터 필드만 가집니다.
 
 ```java
 package com.uahan.menu.model.dto;
 
 public class MenuDTO {
 
-    // 필드: 메뉴 하나가 가지는 정보들
-    // private을 쓴 이유: 남들이 변수에 바로 접근해서 이상한 값 넣을까봐 막아둠.
+    // 필드: 메뉴 정보를 담는 변수들
+    // 접근 제어자 private을 사용하여 캡슐화(Encapsulation)를 적용했습니다.
     private int menuCode;
     private String menuName;
     private int menuPrice;
@@ -256,14 +255,14 @@ public class MenuDTO {
     private String orderableStatus;
 
     // 1. 기본 생성자
-    // new MenuDTO() 라고 했을 때 호출됨. 빈 가방을 만듭니다.
+    // Java Beans 규약에 따라 인자 없는 기본 생성자가 필요합니다.
     public MenuDTO() {
     }
 
     // 2. 매개변수 있는 생성자
-    // 가방을 만들면서 내용물도 바로 채워넣고 싶을 때 씁니다.
+    // 객체 생성과 동시에 필드 값을 초기화합니다.
     public MenuDTO(int menuCode, String menuName, int menuPrice, int categoryCode, String orderableStatus) {
-        this.menuCode = menuCode;           // 내 가방의 menuCode = 전달받은 menuCode
+        this.menuCode = menuCode;
         this.menuName = menuName;
         this.menuPrice = menuPrice;
         this.categoryCode = categoryCode;
@@ -271,7 +270,7 @@ public class MenuDTO {
     }
 
     // 3. Getter / Setter
-    // private으로 잠긴 변수를 꺼내거나(get), 값을 넣는(set) 유일한 구멍입니다.
+    // private 필드에 접근하고 값을 수정하기 위한 메서드입니다.
     public int getMenuCode() {
         return menuCode;
     }
@@ -320,7 +319,7 @@ public class MenuDTO {
         this.orderableStatus = orderableStatus;
     }
 
-    // toString: 가방 안에 뭐가 들었나 확인용 (System.out.println 찍을 때 예쁘게 나오게 함)
+    // toString: 객체의 현재 상태(필드 값)를 문자열로 반환하여 디버깅 등을 돕습니다.
     @Override
     public String toString() {
         return "MenuDTO{" +
@@ -336,7 +335,7 @@ public class MenuDTO {
 
 ---
 
-### 3. 쿼리 저장소 (XML - 레시피북)
+### 3. 쿼리 저장소 (XML Mapper)
 ![XML](https://img.shields.io/badge/XML-menu--query.xml-orange?style=flat&logo=xml&logoColor=white)
 
 자바 코드 안에 SQL(`SELECT * FROM...`)을 섞어 쓰면 지저분하니까, SQL만 따로 모아둔 파일입니다.
@@ -390,7 +389,7 @@ public class MenuDTO {
         ) 
         VALUES 
         (
-          null      <!-- 코드는 자동생성(Auto Increment)이라 null -->
+          null      <!-- AUTO_INCREMENT 속성이므로 null을 입력하여 자동 생성 -->
         , ?
         , ?
         , ?
@@ -429,10 +428,10 @@ public class MenuDTO {
 
 ---
 
-### 4. 데이터 접근 (DAO - 창고 관리자)
+### 4. 데이터 접근 (DAO - Data Access Object)
 ![Java](https://img.shields.io/badge/Java-MenuDAO.java-007396?style=flat&logo=java&logoColor=white)
 
-DB에 직접 접속해서 SQL을 날리는 유일한 담당자입니다.
+DB에 직접 접속하여 데이터를 생성, 조회, 수정, 삭제(CRUD)하는 역할을 수행하는 객체입니다.
 
 ```java
 package com.uahan.menu.model.dao;
@@ -452,10 +451,10 @@ public class MenuDAO {
 
     private Properties prop = new Properties();
 
-    // 생성자: 이 클래스가 시작되자마자 하는 일
+    // 생성자: 클래스 초기화 시 실행
     public MenuDAO() {
         try {
-            // 아까 그 XML 파일(레시피북)을 읽어서 머릿속에 외웁니다.
+            // XML 파일(SQL 매퍼)을 로드하여 Properties 객체에 저장합니다.
             prop.loadFromXML(MenuDAO.class.getClassLoader().getResourceAsStream("mapper/menu-query.xml"));
         } catch (IOException e) {
             e.printStackTrace();
@@ -464,64 +463,63 @@ public class MenuDAO {
 
     // 1. 전체 메뉴 조회
     public List<MenuDTO> selectAllMenus(Connection con) {
-        // 사용할 도구들 미리 선언 (우편 집배원 같은 역할)
         PreparedStatement pstmt = null; 
-        ResultSet rset = null; // 결과 담을 바구니
-        List<MenuDTO> menuList = null; // 최종 반환할 리스트
+        ResultSet rset = null; 
+        List<MenuDTO> menuList = null;
 
-        // XML에서 "selectAllMenus"라는 이름의 쿼리를 꺼냅니다.
+        // XML에서 키값을 이용해 실행할 SQL 문을 가져옵니다.
         String query = prop.getProperty("selectAllMenus");
 
         try {
-            // (1) 쿼리 준비
+            // (1) 쿼리 객체 준비
             pstmt = con.prepareStatement(query);
-            // (2) 실행! (executeQuery: 조회용) -> 결과가 rset에 담김
+            // (2) 쿼리 실행 (SELECT는 executeQuery 사용) -> 결과 집합(ResultSet) 반환
             rset = pstmt.executeQuery();
 
             menuList = new ArrayList<>();
 
-            // (3) 결과 하나씩 꺼내기 (next()는 다음 줄이 있으면 true)
+            // (3) 결과 집합 순회 (cursor 이동)
             while (rset.next()) {
                 MenuDTO menu = new MenuDTO();
-                // DB에서 읽은 값을 가방(DTO)에 옮겨 담기
+                // 컬럼 값을 DTO 객체에 매핑
                 menu.setMenuCode(rset.getInt("menu_code"));
                 menu.setMenuName(rset.getString("menu_name"));
                 menu.setMenuPrice(rset.getInt("menu_price"));
                 // ...
                 
-                // 가방을 리스트에 추가
+                // 리스트에 DTO 객체 추가
                 menuList.add(menu);
             }
 
         } catch (SQLException e) {
             e.printStackTrace();
         } finally {
-            // (4) 뒷정리 (반드시 해야 함!)
+            // (4) 리소스 반환 (JDBCTemplate 사용)
             JDBCTemplate.close(rset);
             JDBCTemplate.close(pstmt);
         }
 
-        return menuList; // 다 담은 리스트 반환
+        return menuList;
     }
 
     // 2. 메뉴 등록
     public int insertMenu(Connection con, MenuDTO menu) {
         PreparedStatement pstmt = null;
-        int result = 0; // 몇 개가 저장됐는지 숫자 (성공하면 1)
+        int result = 0; // SQL 실행 결과(영향받은 행의 수)
 
         String query = prop.getProperty("insertMenu");
 
         try {
             pstmt = con.prepareStatement(query);
             
-            // 물음표(?) 구멍 채우기
-            // "INSERT ... VALUES (?, ?, ?, ?)" 이니까 순서대로 채워야 함
+            // 파라미터 바인딩 (Parameter Binding)
+            // SQL의 '?' 위치 홀더에 값을 설정합니다.
             pstmt.setString(1, menu.getMenuName());
             pstmt.setInt(2, menu.getMenuPrice());
             pstmt.setInt(3, menu.getCategoryCode());
             pstmt.setString(4, menu.getOrderableStatus());
 
-            // 실행! (executeUpdate: 등록/수정/삭제용)
+            // 쿼리 실행 (INSERT/UPDATE/DELETE는 executeUpdate 사용)
             result = pstmt.executeUpdate();
 
         } catch (SQLException e) {
@@ -530,7 +528,7 @@ public class MenuDAO {
             JDBCTemplate.close(pstmt);
         }
 
-        return result; // "1개 등록됨" 반환
+        return result; // 처리된 행의 수 반환
     }
 
     /* selectMenuById, updateMenu, deleteMenu 등도 위와 똑같이 생겼습니다 */
@@ -539,10 +537,10 @@ public class MenuDAO {
 
 ---
 
-### 5. 비즈니스 로직 (Service - 지배인)
+### 5. 비즈니스 로직 (Service)
 ![Java](https://img.shields.io/badge/Java-MenuService.java-2E7D32?style=flat&logo=java&logoColor=white)
 
-여기서 제일 중요한 건 **Connection(전화기)**을 켜고 끄는 것입니다. 즉, **트랜잭션(모 아니면 도)**을 여기서 관리합니다.
+비즈니스 로직을 수행하고 트랜잭션(Transaction)을 제어하는 계층입니다. `Connection` 객체를 관리합니다.
 
 ```java
 package com.uahan.menu.model.service;
@@ -558,41 +556,41 @@ public class MenuService {
     private final MenuDAO menuDAO;
 
     public MenuService() {
-        menuDAO = new MenuDAO(); // 일꾼(DAO)을 미리 고용해 둡니다.
+        menuDAO = new MenuDAO(); // DAO 인스턴스 초기화
     }
 
-    // 메뉴 전체 조회 업무
+    // 메뉴 전체 조회 서비스
     public List<MenuDTO> selectAllMenus() {
-        // (1) DB 연결 (전화기 듦)
+        // (1) Connection 생성 (트랜잭션 시작점은 아니나 DB연결 필요)
         Connection con = JDBCTemplate.getConnection();
         
-        // (2) 일꾼에게 전화기 넘겨주면서 일 시킴
+        // (2) DAO 메서드 호출 (Connection 전달)
         List<MenuDTO> menuList = menuDAO.selectAllMenus(con);
         
-        // (3) 전화 끊기 (조회만 했으니까 커밋은 필요 없음)
+        // (3) Connection 종료 (조회 작업이므로 Commit 불필요)
         JDBCTemplate.close(con);
         
-        return menuList; // 결과 반환
+        return menuList;
     }
 
-    // 메뉴 등록 업무
+    // 메뉴 등록 서비스
     public int registMenu(MenuDTO menu) {
-        // (1) DB 연결 (트랜잭션 시작!)
+        // (1) Connection 생성 (트랜잭션 시작)
         Connection con = JDBCTemplate.getConnection();
         
-        // (2) 일 시킴
+        // (2) DAO 메서드 호출
         int result = menuDAO.insertMenu(con, menu);
 
-        // (3) ★트랜잭션 결정★
+        // (3) 트랜잭션 처리 (Commit / Rollback)
         if (result > 0) {
-            // 성공했으면 "도장 쾅! 저장해!"
+            // 성공 시 변경 사항 확정
             JDBCTemplate.commit(con);
         } else {
-            // 실패했으면 "야 다 취소해! 없던 일로!"
+            // 실패 시 변경 사항 취소
             JDBCTemplate.rollback(con);
         }
         
-        // (4) 전화 끊기
+        // (4) Connection 반환
         JDBCTemplate.close(con);
 
         return result;
@@ -602,10 +600,10 @@ public class MenuService {
 
 ---
 
-### 6. 컨트롤러 (Controller - 카운터)
+### 6. 컨트롤러 (Controller - Servlet)
 ![Java](https://img.shields.io/badge/Java-MenuController.java-000000?style=flat&logo=java&logoColor=white)
 
-사용자의 요청을 받아서 교통정리를 합니다.
+클라이언트(브라우저)의 요청을 받아 적절한 서비스 로직을 호출하고, 그 결과를 뷰(View)로 전달하는 역할을 합니다.
 이번 업데이트로 **AJAX(비동기 통신)**을 지원하도록 업그레이드 되었습니다!
 
 ```java
@@ -658,12 +656,12 @@ public class MenuController extends HttpServlet {
         }
     }
 
-    // POST 요청: 등록, 수정, 삭제할 때 (AJAX 전용!)
+    // POST 요청: 데이터 생성(Create), 수정(Update), 삭제(Delete) 처리 (AJAX)
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         String pathInfo = req.getPathInfo();
         req.setCharacterEncoding("UTF-8");
-        resp.setContentType("text/plain;charset=UTF-8"); // "나 그냥 글자만 보낸다"
+        resp.setContentType("text/plain;charset=UTF-8"); // 응답 형식을 Plain Text로 설정
 
         PrintWriter out = resp.getWriter();
         int result = 0;
@@ -682,9 +680,8 @@ public class MenuController extends HttpServlet {
                 result = menuService.deleteMenu(code);
             }
 
-            // ★ 결과 보내기 ★
-            // 성공하면 "success", 실패하면 "fail"이라는 글자만 띡 보냄.
-            // 그러면 자바스크립트가 알아서 처리함.
+            // 결과 응답
+            // 클라이언트(JavaScript)에게 'success' 또는 'fail' 문자열을 응답합니다.
             if (result > 0) {
                 out.print("success");
             } else {
@@ -694,7 +691,7 @@ public class MenuController extends HttpServlet {
 
         } catch (Exception e) {
             e.printStackTrace();
-            out.print("error"); // 에러 났을 때
+            out.print("error"); // 예외 발생 시 에러 메시지 응답
         }
     }
 }
@@ -744,14 +741,14 @@ public class MenuController extends HttpServlet {
     <div id="toast" class="toast">메시지</div>
 
     <script>
-        // "등록하기" 눌렀을 때 실행되는 함수
+        // 폼 제출(Submit) 이벤트 핸들러
         document.getElementById('registForm').onsubmit = function(e) {
-            e.preventDefault(); // 페이지 새로고침 막음 (중요!)
+            e.preventDefault(); // 기본 폼 제출 동작(새로고침) 방지
 
-            // 폼 검증 (빈칸 있나?)
+            // 폼 유효성 검사 (Required 속성 등)
             if (!this.checkValidity()) return;
 
-            // 서버로 몰래 데이터 전송 (AJAX)
+            // AJAX 요청 전송 (Fetch API 사용)
             const formData = new FormData(this);
             fetch('${pageContext.request.contextPath}/menu/regist', {
                 method: 'POST',
@@ -761,10 +758,10 @@ public class MenuController extends HttpServlet {
             .then(response => response.text())
             .then(result => {
                 if (result.trim() === 'success') {
-                    // 성공하면 초록색 알림 띄우고 모달 닫음
+                    // 응답 성공 시 UI 업데이트 (Toast 알림, 모달 닫기, 목록 갱신)
                     showToast('메뉴가 등록되었습니다.', 'success');
                     closeAllModals();
-                    refreshList(); // 목록 새로고침
+                    refreshList(); // 비동기 목록 갱신 호출
                 }
             });
         };
