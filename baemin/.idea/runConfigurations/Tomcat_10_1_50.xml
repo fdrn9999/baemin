@@ -1,7 +1,7 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Tomcat 10.1.50" type="#com.intellij.j2ee.web.tomcat.TomcatRunConfigurationFactory" factoryName="Local" APPLICATION_SERVER_NAME="Tomcat 10.1.50" ALTERNATIVE_JRE_ENABLED="false" nameIsGenerated="true">
     <option name="COMMON_VM_ARGUMENTS" value="-Dfile.encoding=UTF-8" />
-    <option name="UPDATING_POLICY" value="restart-server" />
+    <option name="UPDATING_POLICY" value="redeploy-artifacts" />
     <deployment>
       <artifact name="Gradle : com.baemin : baemin-1.0-SNAPSHOT.war">
         <settings>

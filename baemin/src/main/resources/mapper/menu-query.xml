@@ -116,6 +116,28 @@
          WHERE menu_code = ?
     </entry>
 
+    <entry key="selectMenusWithFilter">
+        SELECT 
+               a.menu_code
+             , a.menu_name
+             , a.menu_price
+             , a.category_code
+             , b.category_name
+             , a.orderable_status 
+          FROM tbl_menu a
+          JOIN tbl_category b ON a.category_code = b.category_code
+         WHERE 1=1
+           AND (? IS NULL OR a.menu_name LIKE CONCAT('%', ?, '%'))
+           AND (? IS NULL OR a.category_code = ?)
+           AND (? = 'false' OR a.orderable_status = 'Y')
+         ORDER BY 
+           CASE WHEN ? = 'asc' THEN a.menu_name END ASC,
+           CASE WHEN ? = 'desc' THEN a.menu_name END DESC,
+           CASE WHEN ? = 'asc' THEN a.menu_price END ASC,
+           CASE WHEN ? = 'desc' THEN a.menu_price END DESC,
+           a.menu_code ASC
+    </entry>
+
     <entry key="selectAllCategories">
         SELECT
                category_code

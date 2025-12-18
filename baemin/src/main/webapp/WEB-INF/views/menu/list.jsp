@@ -18,9 +18,37 @@
                     <div style="width: 30px;"></div> <!-- Spacer -->
                 </header>
 
-                <div class="sort-controls">
-                    <button class="sort-btn" id="sortName" onclick="toggleSort('name')">이름순</button>
-                    <button class="sort-btn" id="sortPrice" onclick="toggleSort('price')">가격순</button>
+                <!-- Filter and Search Controls -->
+                <div class="filter-search-controls">
+                    <!-- Menu Count Display -->
+                    <div class="menu-count-display">
+                        총 <span id="menuCount">${menuList.size()}</span>개 메뉴
+                    </div>
+                    <div class="search-filter-row">
+                        <select id="categoryFilter" class="category-filter" onchange="performSearch()">
+                            <option value="">전체</option>
+                            <c:forEach var="category" items="${categoryList}">
+                                <option value="${category.categoryCode}">${category.categoryName}</option>
+                            </c:forEach>
+                        </select>
+                        <div class="search-box">
+                            <input type="text" id="searchInput" class="search-input" placeholder="메뉴 이름 검색..."
+                                onkeypress="if(event.key==='Enter') performSearch()">
+                            <button class="search-btn" onclick="performSearch()" title="검색">검색</button>
+                        </div>
+                    </div>
+                    <!-- Sold-out Filter Checkbox -->
+                    <div class="exclude-soldout-container">
+                        <label class="exclude-soldout-wrapper">
+                            <input type="checkbox" id="excludeSoldOut" onchange="performSearch()">
+                            <span class="custom-checkbox"></span>
+                            품절 제외
+                        </label>
+                    </div>
+                    <div class="sort-controls">
+                        <button class="sort-btn" id="sortName" onclick="toggleSort('name')">이름순</button>
+                        <button class="sort-btn" id="sortPrice" onclick="toggleSort('price')">가격순</button>
+                    </div>
                 </div>
 
                 <div class="menu-list" id="menuListContainer">
@@ -196,7 +224,7 @@
                             if (result.trim() === 'success') {
                                 showToast(successMsg, 'success');
                                 closeAllModals();
-                                refreshList();
+                                performSearch(); // Use performSearch to preserve filters
                                 if (onSuccess) onSuccess();
                             } else {
                                 showToast(failMsg, 'error');
@@ -205,18 +233,6 @@
                         .catch(err => {
                             console.error('Error:', err);
                             showToast('오류가 발생했습니다.', 'error');
-                        });
-                }
-
-                // --- Refresh List ---
-                function refreshList() {
-                    const sort = currentSortState;
-                    const url = '${pageContext.request.contextPath}/menu/list?sort=' + sort;
-
-                    fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                        .then(response => response.text())
-                        .then(html => {
-                            document.getElementById('menuListContainer').innerHTML = html;
                         });
                 }
 
@@ -342,50 +358,82 @@
 
 
                 // --- Sorting ---
+                let nameSortState = ''; // '', 'asc', 'desc'
+                let priceSortState = ''; // '', 'asc', 'desc'
+
                 function toggleSort(type) {
-                    let newSort = '';
                     if (type === 'name') {
-                        if (currentSortState === 'name_asc') newSort = 'name_desc';
-                        else if (currentSortState === 'name_desc') newSort = '';
-                        else newSort = 'name_asc';
+                        if (nameSortState === 'asc') nameSortState = 'desc';
+                        else if (nameSortState === 'desc') nameSortState = '';
+                        else nameSortState = 'asc';
                     } else if (type === 'price') {
-                        if (currentSortState === 'price_asc') newSort = 'price_desc';
-                        else if (currentSortState === 'price_desc') newSort = '';
-                        else newSort = 'price_asc';
+                        if (priceSortState === 'asc') priceSortState = 'desc';
+                        else if (priceSortState === 'desc') priceSortState = '';
+                        else priceSortState = 'asc';
                     }
-                    currentSortState = newSort;
-                    updateSortButtons(newSort);
-                    refreshList();
+                    updateSortButtons();
+                    performSearch(); // Trigger search with new sort
 
                     const newUrl = new URL(window.location);
-                    if (newSort) newUrl.searchParams.set('sort', newSort);
-                    else newUrl.searchParams.delete('sort');
+                    if (nameSortState) newUrl.searchParams.set('nameSort', nameSortState);
+                    else newUrl.searchParams.delete('nameSort');
+                    if (priceSortState) newUrl.searchParams.set('priceSort', priceSortState);
+                    else newUrl.searchParams.delete('priceSort');
                     window.history.pushState({}, '', newUrl);
                 }
 
-                function updateSortButtons(sort) {
-                    document.getElementById('sortName').className = 'sort-btn';
-                    document.getElementById('sortPrice').className = 'sort-btn';
-                    if (!sort) return;
+                function updateSortButtons() {
+                    const nameBtn = document.getElementById('sortName');
+                    const priceBtn = document.getElementById('sortPrice');
 
-                    if (sort.startsWith('name')) {
-                        const btn = document.getElementById('sortName');
-                        btn.className = 'sort-btn active';
-                        if (sort.endsWith('asc')) btn.classList.add('asc');
-                        if (sort.endsWith('desc')) btn.classList.add('desc');
-                    } else if (sort.startsWith('price')) {
-                        const btn = document.getElementById('sortPrice');
-                        btn.className = 'sort-btn active';
-                        if (sort.endsWith('asc')) btn.classList.add('asc');
-                        if (sort.endsWith('desc')) btn.classList.add('desc');
-                    }
+                    nameBtn.className = 'sort-btn' + (nameSortState ? ' active ' + nameSortState : '');
+                    priceBtn.className = 'sort-btn' + (priceSortState ? ' active ' + priceSortState : '');
+                }
+
+                // --- Search and Filter (Server-side) ---
+                function performSearch() {
+                    const searchQuery = document.getElementById('searchInput').value.trim();
+                    const categoryFilter = document.getElementById('categoryFilter').value;
+                    const excludeSoldOut = document.getElementById('excludeSoldOut').checked;
+
+                    // Build URL with parameters
+                    const url = '${pageContext.request.contextPath}/menu/list';
+                    const params = new URLSearchParams();
+
+                    if (searchQuery) params.append('searchQuery', searchQuery);
+                    if (categoryFilter) params.append('categoryCode', categoryFilter);
+                    if (excludeSoldOut) params.append('excludeSoldOut', 'true');
+                    if (nameSortState) params.append('nameSort', nameSortState);
+                    if (priceSortState) params.append('priceSort', priceSortState);
+
+                    const fullUrl = params.toString() ? url + '?' + params.toString() : url;
+
+                    // Make AJAX request to server
+                    fetch(fullUrl, {
+                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                    })
+                        .then(response => response.text())
+                        .then(html => {
+                            document.getElementById('menuListContainer').innerHTML = html;
+                            updateMenuCount(); // Update count after loading new content
+                        })
+                        .catch(err => {
+                            console.error('Search error:', err);
+                        });
+                }
+
+                // Update menu count display
+                function updateMenuCount() {
+                    const count = document.querySelectorAll('.menu-card').length;
+                    document.getElementById('menuCount').textContent = count;
                 }
 
                 // --- Init ---
                 window.onload = function () {
                     const urlParams = new URLSearchParams(window.location.search);
-                    currentSortState = urlParams.get('sort') || '';
-                    updateSortButtons(currentSortState);
+                    nameSortState = urlParams.get('nameSort') || '';
+                    priceSortState = urlParams.get('priceSort') || '';
+                    updateSortButtons();
                 };
 
                 // --- Screen Click Close Logic (Improved) ---

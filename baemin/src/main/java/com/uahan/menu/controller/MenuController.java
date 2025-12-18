@@ -28,9 +28,30 @@ public class MenuController extends HttpServlet {
         String pathInfo = req.getPathInfo();
 
         if (pathInfo == null || "/list".equals(pathInfo)) {
-            String sort = req.getParameter("sort");
-            List<MenuDTO> menuList = menuService.selectAllMenus(sort);
-            List<CategoryDTO> categoryList = menuService.selectAllCategories(); // Fetch categories for modal
+            // Extract search and filter parameters
+            String searchQuery = req.getParameter("searchQuery");
+            String categoryCodeStr = req.getParameter("categoryCode");
+            String excludeSoldOutStr = req.getParameter("excludeSoldOut");
+            String nameSort = req.getParameter("nameSort");
+            String priceSort = req.getParameter("priceSort");
+
+            // Parse categoryCode to Integer
+            Integer categoryCode = null;
+            if (categoryCodeStr != null && !categoryCodeStr.trim().isEmpty()) {
+                try {
+                    categoryCode = Integer.parseInt(categoryCodeStr);
+                } catch (NumberFormatException e) {
+                    // Invalid category code, ignore
+                }
+            }
+
+            // Parse excludeSoldOut to boolean
+            boolean excludeSoldOut = Boolean.parseBoolean(excludeSoldOutStr);
+
+            // Use new search method that handles filtering
+            List<MenuDTO> menuList = menuService.searchMenus(searchQuery, categoryCode, excludeSoldOut, nameSort,
+                    priceSort);
+            List<CategoryDTO> categoryList = menuService.selectAllCategories();
 
             req.setAttribute("menuList", menuList);
             req.setAttribute("categoryList", categoryList);

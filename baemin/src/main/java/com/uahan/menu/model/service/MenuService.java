@@ -23,6 +23,15 @@ public class MenuService {
         return menuList;
     }
 
+    public List<MenuDTO> searchMenus(String searchQuery, Integer categoryCode, boolean excludeSoldOut, String nameSort,
+            String priceSort) {
+        Connection con = JDBCTemplate.getConnection();
+        List<MenuDTO> menuList = menuDAO.selectMenusWithFilter(con, searchQuery, categoryCode, excludeSoldOut, nameSort,
+                priceSort);
+        JDBCTemplate.close(con);
+        return menuList;
+    }
+
     public MenuDTO selectMenuById(int menuCode) {
         Connection con = JDBCTemplate.getConnection();
         MenuDTO menu = menuDAO.selectMenuById(con, menuCode);

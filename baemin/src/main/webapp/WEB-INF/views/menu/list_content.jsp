@@ -3,6 +3,7 @@
 
         <c:forEach var="menu" items="${menuList}">
             <div class="menu-card" data-name="${menu.menuName}" data-price="${menu.menuPrice}"
+                data-category-code="${menu.categoryCode}"
                 onclick="openModal('${menu.menuCode}', '${menu.menuName}', '${menu.menuPrice}', '${menu.categoryName}', '${menu.categoryCode}', '${menu.orderableStatus}')">
                 <div class="menu-icon">🍽️</div>
                 <div class="menu-info">

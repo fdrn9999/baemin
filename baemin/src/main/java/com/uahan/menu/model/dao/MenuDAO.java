@@ -80,6 +80,65 @@ public class MenuDAO {
         return menuList;
     }
 
+    public List<MenuDTO> selectMenusWithFilter(Connection con, String searchQuery, Integer categoryCode,
+            boolean excludeSoldOut, String nameSort, String priceSort) {
+        PreparedStatement pstmt = null;
+        ResultSet rset = null;
+        List<MenuDTO> menuList = null;
+
+        String query = prop.getProperty("selectMenusWithFilter");
+
+        try {
+            pstmt = con.prepareStatement(query);
+
+            // searchQuery parameters (duplicate for IS NULL and LIKE)
+            pstmt.setString(1, searchQuery);
+            pstmt.setString(2, searchQuery);
+
+            // categoryCode parameters (duplicate for IS NULL and =)
+            if (categoryCode == null) {
+                pstmt.setNull(3, java.sql.Types.INTEGER);
+                pstmt.setNull(4, java.sql.Types.INTEGER);
+            } else {
+                pstmt.setInt(3, categoryCode);
+                pstmt.setInt(4, categoryCode);
+            }
+
+            // excludeSoldOut parameter
+            pstmt.setString(5, String.valueOf(excludeSoldOut));
+
+            // sort parameters (Case when statements)
+            pstmt.setString(6, nameSort);
+            pstmt.setString(7, nameSort);
+            pstmt.setString(8, priceSort);
+            pstmt.setString(9, priceSort);
+
+            rset = pstmt.executeQuery();
+
+            menuList = new ArrayList<>();
+
+            while (rset.next()) {
+                MenuDTO menu = new MenuDTO();
+                menu.setMenuCode(rset.getInt("menu_code"));
+                menu.setMenuName(rset.getString("menu_name"));
+                menu.setMenuPrice(rset.getInt("menu_price"));
+                menu.setCategoryCode(rset.getInt("category_code"));
+                menu.setCategoryName(rset.getString("category_name"));
+                menu.setOrderableStatus(rset.getString("orderable_status"));
+
+                menuList.add(menu);
+            }
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            JDBCTemplate.close(rset);
+            JDBCTemplate.close(pstmt);
+        }
+
+        return menuList;
+    }
+
     public MenuDTO selectMenuById(Connection con, int menuCode) {
         PreparedStatement pstmt = null;
         ResultSet rset = null;
