@@ -24,12 +24,33 @@ public class MenuDAO {
         }
     }
 
-    public List<MenuDTO> selectAllMenus(Connection con) {
+    public List<MenuDTO> selectAllMenus(Connection con, String sort) {
         PreparedStatement pstmt = null;
         ResultSet rset = null;
         List<MenuDTO> menuList = null;
 
-        String query = prop.getProperty("selectAllMenus");
+        String queryKey = "selectAllMenus";
+        if (sort != null) {
+            switch (sort) {
+                case "name_asc":
+                    queryKey = "selectAllMenusByNameAsc";
+                    break;
+                case "name_desc":
+                    queryKey = "selectAllMenusByNameDesc";
+                    break;
+                case "price_asc":
+                    queryKey = "selectAllMenusByPriceAsc";
+                    break;
+                case "price_desc":
+                    queryKey = "selectAllMenusByPriceDesc";
+                    break;
+                default:
+                    queryKey = "selectAllMenus";
+                    break;
+            }
+        }
+
+        String query = prop.getProperty(queryKey);
 
         try {
             pstmt = con.prepareStatement(query);

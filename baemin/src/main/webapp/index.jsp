@@ -55,6 +55,13 @@
 
                 <a href="menu/list" class="btn-start">메뉴 관리 시작하기</a>
             </div>
+
+            <footer class="site-footer">
+                <div class="footer-content">
+                    <p class="footer-team">1팀 | 팀원: 정진호 윤성원 정병진 최현지</p>
+                    <p class="footer-copy">Copyright © Baemin Corp. All rights reserved.</p>
+                </div>
+            </footer>
         </div>
 
     </body>

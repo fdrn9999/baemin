@@ -16,9 +16,9 @@ public class MenuService {
         menuDAO = new MenuDAO();
     }
 
-    public List<MenuDTO> selectAllMenus() {
+    public List<MenuDTO> selectAllMenus(String sort) {
         Connection con = JDBCTemplate.getConnection();
-        List<MenuDTO> menuList = menuDAO.selectAllMenus(con);
+        List<MenuDTO> menuList = menuDAO.selectAllMenus(con, sort);
         JDBCTemplate.close(con);
         return menuList;
     }

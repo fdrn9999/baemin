@@ -27,9 +27,19 @@ public class MenuController extends HttpServlet {
         String pathInfo = req.getPathInfo();
 
         if (pathInfo == null || "/list".equals(pathInfo)) {
-            List<MenuDTO> menuList = menuService.selectAllMenus();
+            String sort = req.getParameter("sort");
+            List<MenuDTO> menuList = menuService.selectAllMenus(sort);
+            List<CategoryDTO> categoryList = menuService.selectAllCategories(); // Fetch categories for modal
+
             req.setAttribute("menuList", menuList);
-            req.getRequestDispatcher("/WEB-INF/views/menu/list.jsp").forward(req, resp);
+            req.setAttribute("categoryList", categoryList);
+
+            String ajaxHeader = req.getHeader("X-Requested-With");
+            if ("XMLHttpRequest".equals(ajaxHeader)) {
+                req.getRequestDispatcher("/WEB-INF/views/menu/list_content.jsp").forward(req, resp);
+            } else {
+                req.getRequestDispatcher("/WEB-INF/views/menu/list.jsp").forward(req, resp);
+            }
         } else if ("/detail".equals(pathInfo)) {
             resp.sendRedirect(req.getContextPath() + "/menu/list");
         } else if ("/regist".equals(pathInfo)) {

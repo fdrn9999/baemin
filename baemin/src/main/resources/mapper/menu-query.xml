@@ -15,6 +15,58 @@
           JOIN tbl_category b ON a.category_code = b.category_code
          ORDER BY a.menu_code
     </entry>
+
+    <entry key="selectAllMenusByNameAsc">
+        SELECT 
+               a.menu_code
+             , a.menu_name
+             , a.menu_price
+             , a.category_code
+             , b.category_name
+             , a.orderable_status 
+          FROM tbl_menu a
+          JOIN tbl_category b ON a.category_code = b.category_code
+         ORDER BY a.menu_name ASC
+    </entry>
+    
+    <entry key="selectAllMenusByNameDesc">
+        SELECT 
+               a.menu_code
+             , a.menu_name
+             , a.menu_price
+             , a.category_code
+             , b.category_name
+             , a.orderable_status 
+          FROM tbl_menu a
+          JOIN tbl_category b ON a.category_code = b.category_code
+         ORDER BY a.menu_name DESC
+    </entry>
+    
+    <entry key="selectAllMenusByPriceAsc">
+        SELECT 
+               a.menu_code
+             , a.menu_name
+             , a.menu_price
+             , a.category_code
+             , b.category_name
+             , a.orderable_status 
+          FROM tbl_menu a
+          JOIN tbl_category b ON a.category_code = b.category_code
+         ORDER BY a.menu_price ASC
+    </entry>
+    
+    <entry key="selectAllMenusByPriceDesc">
+        SELECT 
+               a.menu_code
+             , a.menu_name
+             , a.menu_price
+             , a.category_code
+             , b.category_name
+             , a.orderable_status 
+          FROM tbl_menu a
+          JOIN tbl_category b ON a.category_code = b.category_code
+         ORDER BY a.menu_price DESC
+    </entry>
     
     <entry key="selectMenuById">
         SELECT 
